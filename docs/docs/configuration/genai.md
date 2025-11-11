@@ -9,7 +9,7 @@ Requests for a description are sent off automatically to your AI provider at the
 
 ## Configuration
 
-Generative AI can be enabled for all cameras or only for specific cameras. If GenAI is disabled for a camera, you can still manually generate descriptions for events using the HTTP API. There are currently 3 native providers available to integrate with Frigate. Other providers that support the OpenAI standard API can also be used. See the OpenAI section below.
+Generative AI can be enabled for all cameras or only for specific cameras. If GenAI is disabled for a camera, you can still manually generate descriptions for events using the HTTP API. There are currently 5 native providers available to integrate with Frigate: Ollama, Google Gemini, OpenAI, Azure OpenAI, and OpenRouter.
 
 To use Generative AI, you must define a single provider at the global level of your Frigate configuration. If the provider you choose requires an API key, you may either directly paste it in your configuration, or store it in an environment variable prefixed with `FRIGATE_`.
 
@@ -153,6 +153,43 @@ genai:
   model: gpt-5-mini
   api_key: "{FRIGATE_OPENAI_API_KEY}"
 ```
+
+## OpenRouter
+
+[OpenRouter](https://openrouter.ai/) provides a unified API to access multiple AI providers including OpenAI, Google, Anthropic, Meta, and more. This allows you to easily switch between different models and providers without changing your configuration structure. OpenRouter uses a pay-as-you-go pricing model.
+
+### Supported Models
+
+OpenRouter supports a wide variety of vision-capable models from different providers. Popular options include:
+
+- Google models: `google/gemini-2.0-flash`, `google/gemini-1.5-pro`
+- OpenAI models: `openai/gpt-4o`, `openai/gpt-4o-mini`
+- Anthropic models: `anthropic/claude-3.5-sonnet`, `anthropic/claude-3-opus`
+- And many more - see the [full model list](https://openrouter.ai/models)
+
+### Get API Key
+
+To start using OpenRouter:
+
+1. Visit [OpenRouter](https://openrouter.ai/) and sign up for an account
+2. Navigate to the [API Keys page](https://openrouter.ai/keys)
+3. Create a new API key
+4. Add credits to your account in the [Credits page](https://openrouter.ai/credits)
+
+### Configuration
+
+```yaml
+genai:
+  provider: openrouter
+  api_key: "{FRIGATE_OPENROUTER_API_KEY}"
+  model: google/gemini-2.0-flash
+```
+
+:::tip
+
+OpenRouter allows you to easily experiment with different models by simply changing the `model` parameter. This can be useful for comparing quality and cost between providers.
+
+:::
 
 ## Usage and Best Practices
 

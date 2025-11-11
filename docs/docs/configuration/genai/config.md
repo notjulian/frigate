@@ -5,7 +5,7 @@ title: Configuring Generative AI
 
 ## Configuration
 
-A Generative AI provider can be configured in the global config, which will make the Generative AI features available for use. There are currently 3 native providers available to integrate with Frigate. Other providers that support the OpenAI standard API can also be used. See the OpenAI section below.
+A Generative AI provider can be configured in the global config, which will make the Generative AI features available for use. There are currently 5 native providers available to integrate with Frigate: Ollama, Google Gemini, OpenAI, Azure OpenAI, and OpenRouter.
 
 To use Generative AI, you must define a single provider at the global level of your Frigate configuration. If the provider you choose requires an API key, you may either directly paste it in your configuration, or store it in an environment variable prefixed with `FRIGATE_`.
 
@@ -141,3 +141,47 @@ genai:
   base_url: https://example-endpoint.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=2023-03-15-preview
   api_key: "{FRIGATE_OPENAI_API_KEY}"
 ```
+
+## OpenRouter
+
+[OpenRouter](https://openrouter.ai/) provides a unified API to access multiple AI providers including OpenAI, Google, Anthropic, Meta, and more. This allows you to easily switch between different models and providers without changing your configuration structure. OpenRouter uses a pay-as-you-go pricing model with competitive rates.
+
+### Supported Models
+
+OpenRouter supports a wide variety of vision-capable models from different providers. Popular options include:
+
+- Google models: `google/gemini-2.0-flash`, `google/gemini-1.5-pro`
+- OpenAI models: `openai/gpt-4o`, `openai/gpt-4o-mini`
+- Anthropic models: `anthropic/claude-3.5-sonnet`, `anthropic/claude-3-opus`
+- Meta models: `meta-llama/llama-3.2-90b-vision-instruct`
+- And many more - see the [full model list](https://openrouter.ai/models)
+
+:::tip
+
+When choosing a model, consider both cost and performance. Many models are available, and OpenRouter makes it easy to experiment by simply changing the `model` parameter without modifying your API configuration.
+
+:::
+
+### Get API Key
+
+To start using OpenRouter:
+
+1. Visit [OpenRouter](https://openrouter.ai/) and sign up for an account
+2. Navigate to the [API Keys page](https://openrouter.ai/keys)
+3. Create a new API key
+4. Add credits to your account in the [Credits page](https://openrouter.ai/credits)
+
+### Configuration
+
+```yaml
+genai:
+  provider: openrouter
+  api_key: "{FRIGATE_OPENROUTER_API_KEY}"
+  model: google/gemini-2.0-flash
+```
+
+:::note
+
+The default base URL for OpenRouter is `https://openrouter.ai/api/v1`, but you can override it by setting the `base_url` parameter in your configuration if needed.
+
+:::
