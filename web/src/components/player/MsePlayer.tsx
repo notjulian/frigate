@@ -1,5 +1,5 @@
 import { baseUrl } from "@/api/baseUrl";
-import { usePersistence } from "@/hooks/use-persistence";
+import { useUserPersistence } from "@/hooks/use-user-persistence";
 import {
   LivePlayerError,
   PlayerStatsType,
@@ -72,7 +72,10 @@ function MSEPlayer({
   const [errorCount, setErrorCount] = useState<number>(0);
   const totalBytesLoaded = useRef(0);
 
-  const [fallbackTimeout] = usePersistence<number>("liveFallbackTimeout", 3);
+  const [fallbackTimeout] = useUserPersistence<number>(
+    "liveFallbackTimeout",
+    3,
+  );
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -82,6 +85,7 @@ function MSEPlayer({
     [key: string]: (msg: { value: string; type: string }) => void;
   }>({});
   const msRef = useRef<MediaSource | null>(null);
+  const mseCodecRef = useRef<string | null>(null);
 
   const wsURL = useMemo(() => {
     return `${baseUrl.replace(/^http/, "ws")}live/mse/api/ws?src=${camera}`;
@@ -93,8 +97,19 @@ function MSEPlayer({
       console.error(
         `${camera} - MSE error '${error}': ${description} See the documentation: https://docs.frigate.video/configuration/live/#live-player-error-messages`,
       );
+
+      if (mseCodecRef.current) {
+        // eslint-disable-next-line no-console
+        console.error(
+          `${camera} - Browser negotiated codecs: ${mseCodecRef.current}`,
+        );
+        // eslint-disable-next-line no-console
+        console.error(`${camera} - Supported codecs: ${CODECS.join(", ")}`);
+      }
       onError?.(error);
     },
+    // we know that these deps are correct
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [camera, onError],
   );
 
@@ -298,6 +313,9 @@ function MSEPlayer({
 
     onmessageRef.current["mse"] = (msg) => {
       if (msg.type !== "mse") return;
+
+      // Store the codec value for error logging
+      mseCodecRef.current = msg.value;
 
       let sb: SourceBuffer | undefined;
       try {

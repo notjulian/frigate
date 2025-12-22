@@ -13,6 +13,7 @@ from frigate.config import FrigateConfig
 from frigate.const import (
     CACHE_DIR,
     MODEL_CACHE_DIR,
+    UPDATE_AUDIO_TRANSCRIPTION_STATE,
     UPDATE_EVENT_DESCRIPTION,
 )
 from frigate.data_processing.types import PostProcessDataEnum
@@ -130,8 +131,9 @@ class AudioTranscriptionPostProcessor(PostProcessorApi):
                 },
             )
 
-            # Embed the description
-            self.embeddings.embed_description(event_id, transcription)
+            # Embed the description if semantic search is enabled
+            if self.config.semantic_search.enabled:
+                self.embeddings.embed_description(event_id, transcription)
 
         except DoesNotExist:
             logger.debug("No recording found for audio transcription post-processing")
@@ -190,6 +192,8 @@ class AudioTranscriptionPostProcessor(PostProcessorApi):
                 self.transcription_running = False
                 self.transcription_thread = None
 
+            self.requestor.send_data(UPDATE_AUDIO_TRANSCRIPTION_STATE, "idle")
+
     def handle_request(self, topic: str, request_data: dict[str, any]) -> str | None:
         if topic == "transcribe_audio":
             event = request_data["event"]
@@ -203,6 +207,8 @@ class AudioTranscriptionPostProcessor(PostProcessorApi):
 
                 # Mark as running and start the thread
                 self.transcription_running = True
+                self.requestor.send_data(UPDATE_AUDIO_TRANSCRIPTION_STATE, "processing")
+
                 self.transcription_thread = threading.Thread(
                     target=self._transcription_wrapper, args=(event,), daemon=True
                 )

@@ -81,7 +81,10 @@
     "formattedTimestampMonthDayYear": {
       "12hour": "d. MMM yyyy",
       "24hour": "d. MMM yyyy"
-    }
+    },
+    "inProgress": "In Bearbeitung",
+    "invalidStartTime": "Ungültige Startzeit",
+    "invalidEndTime": "Ungültige Endzeit"
   },
   "button": {
     "save": "Speichern",
@@ -118,10 +121,16 @@
     "pictureInPicture": "Bild in Bild",
     "on": "AN",
     "suspended": "Pausierte",
-    "unsuspended": "fortsetzen"
+    "unsuspended": "fortsetzen",
+    "continue": "Weiter"
   },
   "label": {
-    "back": "Zurück"
+    "back": "Zurück",
+    "hide": "Verstecke {{item}}",
+    "show": "Zeige {{item}}",
+    "ID": "ID",
+    "none": "Nichts",
+    "all": "Alle"
   },
   "menu": {
     "configurationEditor": "Konfigurationseditor",
@@ -222,7 +231,8 @@
       "logout": "Abmelden"
     },
     "uiPlayground": "Testgebiet für Benutzeroberfläche",
-    "export": "Exportieren"
+    "export": "Exportieren",
+    "classification": "Klassifizierung"
   },
   "unit": {
     "speed": {
@@ -284,5 +294,14 @@
   },
   "information": {
     "pixels": "{{area}}px"
+  },
+  "field": {
+    "optional": "Optional",
+    "internalID": "Die interne ID, die Frigate in der Konfiguration und Datenbank verwendet"
+  },
+  "list": {
+    "two": "{{0}} und {{1}}",
+    "many": "{{items}}, und {{last}}",
+    "separatorWithSpace": ", "
   }
 }

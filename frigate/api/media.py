@@ -22,7 +22,11 @@ from pathvalidate import sanitize_filename
 from peewee import DoesNotExist, fn, operator
 from tzlocal import get_localzone_name
 
-from frigate.api.auth import get_allowed_cameras_for_filter, require_camera_access
+from frigate.api.auth import (
+    allow_any_authenticated,
+    get_allowed_cameras_for_filter,
+    require_camera_access,
+)
 from frigate.api.defs.query.media_query_parameters import (
     Extension,
     MediaEventsSnapshotQueryParams,
@@ -393,7 +397,7 @@ async def submit_recording_snapshot_to_plus(
         )
 
 
-@router.get("/recordings/storage")
+@router.get("/recordings/storage", dependencies=[Depends(allow_any_authenticated())])
 def get_recordings_storage_usage(request: Request):
     recording_stats = request.app.stats_emitter.get_latest_stats()["service"][
         "storage"
@@ -417,7 +421,7 @@ def get_recordings_storage_usage(request: Request):
     return JSONResponse(content=camera_usages)
 
 
-@router.get("/recordings/summary")
+@router.get("/recordings/summary", dependencies=[Depends(allow_any_authenticated())])
 def all_recordings_summary(
     request: Request,
     params: MediaRecordingsSummaryQueryParams = Depends(),
@@ -635,7 +639,11 @@ async def recordings(
     return JSONResponse(content=list(recordings))
 
 
-@router.get("/recordings/unavailable", response_model=list[dict])
+@router.get(
+    "/recordings/unavailable",
+    response_model=list[dict],
+    dependencies=[Depends(allow_any_authenticated())],
+)
 async def no_recordings(
     request: Request,
     params: MediaRecordingsAvailabilityQueryParams = Depends(),
@@ -829,7 +837,19 @@ async def recording_clip(
     dependencies=[Depends(require_camera_access)],
     description="Returns an HLS playlist for the specified timestamp-range on the specified camera. Append /master.m3u8 or /index.m3u8 for HLS playback.",
 )
-async def vod_ts(camera_name: str, start_ts: float, end_ts: float):
+async def vod_ts(
+    camera_name: str,
+    start_ts: float,
+    end_ts: float,
+    force_discontinuity: bool = False,
+):
+    logger.debug(
+        "VOD: Generating VOD for %s from %s to %s with force_discontinuity=%s",
+        camera_name,
+        start_ts,
+        end_ts,
+        force_discontinuity,
+    )
     recordings = (
         Recordings.select(
             Recordings.path,
@@ -854,6 +874,14 @@ async def vod_ts(camera_name: str, start_ts: float, end_ts: float):
 
     recording: Recordings
     for recording in recordings:
+        logger.debug(
+            "VOD: processing recording: %s start=%s end=%s duration=%s",
+            recording.path,
+            recording.start_time,
+            recording.end_time,
+            recording.duration,
+        )
+
         clip = {"type": "source", "path": recording.path}
         duration = int(recording.duration * 1000)
 
@@ -862,6 +890,11 @@ async def vod_ts(camera_name: str, start_ts: float, end_ts: float):
             inpoint = int((start_ts - recording.start_time) * 1000)
             clip["clipFrom"] = inpoint
             duration -= inpoint
+            logger.debug(
+                "VOD: applied clipFrom %sms to %s",
+                inpoint,
+                recording.path,
+            )
 
         # adjust end if recording.end_time is after end_ts
         if recording.end_time > end_ts:
@@ -869,12 +902,23 @@ async def vod_ts(camera_name: str, start_ts: float, end_ts: float):
 
         if duration < min_duration_ms:
             # skip if the clip has no valid duration (too short to contain frames)
+            logger.debug(
+                "VOD: skipping recording %s - resulting duration %sms too short",
+                recording.path,
+                duration,
+            )
             continue
 
         if min_duration_ms <= duration < max_duration_ms:
             clip["keyFrameDurations"] = [duration]
             clips.append(clip)
             durations.append(duration)
+            logger.debug(
+                "VOD: added clip %s duration_ms=%s clipFrom=%s",
+                recording.path,
+                duration,
+                clip.get("clipFrom"),
+            )
         else:
             logger.warning(f"Recording clip is missing or empty: {recording.path}")
 
@@ -894,7 +938,7 @@ async def vod_ts(camera_name: str, start_ts: float, end_ts: float):
     return JSONResponse(
         content={
             "cache": hour_ago.timestamp() > start_ts,
-            "discontinuity": False,
+            "discontinuity": force_discontinuity,
             "consistentSequenceMediaInfo": True,
             "durations": durations,
             "segment_duration": max(durations),
@@ -937,6 +981,7 @@ async def vod_hour(
 
 @router.get(
     "/vod/event/{event_id}",
+    dependencies=[Depends(allow_any_authenticated())],
     description="Returns an HLS playlist for the specified object. Append /master.m3u8 or /index.m3u8 for HLS playback.",
 )
 async def vod_event(
@@ -975,6 +1020,19 @@ async def vod_event(
         Event.update(has_clip=False).where(Event.id == event_id).execute()
 
     return vod_response
+
+
+@router.get(
+    "/vod/clip/{camera_name}/start/{start_ts}/end/{end_ts}",
+    dependencies=[Depends(require_camera_access)],
+    description="Returns an HLS playlist for a timestamp range with HLS discontinuity enabled. Append /master.m3u8 or /index.m3u8 for HLS playback.",
+)
+async def vod_clip(
+    camera_name: str,
+    start_ts: float,
+    end_ts: float,
+):
+    return await vod_ts(camera_name, start_ts, end_ts, force_discontinuity=True)
 
 
 @router.get(
@@ -1053,7 +1111,10 @@ async def event_snapshot(
     )
 
 
-@router.get("/events/{event_id}/thumbnail.{extension}")
+@router.get(
+    "/events/{event_id}/thumbnail.{extension}",
+    dependencies=[Depends(require_camera_access)],
+)
 async def event_thumbnail(
     request: Request,
     event_id: str,
@@ -1251,7 +1312,10 @@ def grid_snapshot(
         )
 
 
-@router.get("/events/{event_id}/snapshot-clean.webp")
+@router.get(
+    "/events/{event_id}/snapshot-clean.webp",
+    dependencies=[Depends(require_camera_access)],
+)
 def event_snapshot_clean(request: Request, event_id: str, download: bool = False):
     webp_bytes = None
     try:
@@ -1375,7 +1439,9 @@ def event_snapshot_clean(request: Request, event_id: str, download: bool = False
     )
 
 
-@router.get("/events/{event_id}/clip.mp4")
+@router.get(
+    "/events/{event_id}/clip.mp4", dependencies=[Depends(require_camera_access)]
+)
 async def event_clip(
     request: Request,
     event_id: str,
@@ -1403,7 +1469,9 @@ async def event_clip(
     )
 
 
-@router.get("/events/{event_id}/preview.gif")
+@router.get(
+    "/events/{event_id}/preview.gif", dependencies=[Depends(require_camera_access)]
+)
 def event_preview(request: Request, event_id: str):
     try:
         event: Event = Event.get(Event.id == event_id)
@@ -1756,7 +1824,7 @@ def preview_mp4(
     )
 
 
-@router.get("/review/{event_id}/preview")
+@router.get("/review/{event_id}/preview", dependencies=[Depends(require_camera_access)])
 def review_preview(
     request: Request,
     event_id: str,
@@ -1782,8 +1850,12 @@ def review_preview(
         return preview_mp4(request, review.camera, start_ts, end_ts)
 
 
-@router.get("/preview/{file_name}/thumbnail.jpg")
-@router.get("/preview/{file_name}/thumbnail.webp")
+@router.get(
+    "/preview/{file_name}/thumbnail.jpg", dependencies=[Depends(require_camera_access)]
+)
+@router.get(
+    "/preview/{file_name}/thumbnail.webp", dependencies=[Depends(require_camera_access)]
+)
 def preview_thumbnail(file_name: str):
     """Get a thumbnail from the cached preview frames."""
     if len(file_name) > 1000:

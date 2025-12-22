@@ -17,7 +17,7 @@
       "trainFailed": "Не вдалося тренуватися: {{errorMessage}}"
     },
     "success": {
-      "updatedFaceScore": "Оцінку обличчя успішно оновлено.",
+      "updatedFaceScore": "Оцінку обличчя успішно оновлено до {{name}} ({{score}}).",
       "deletedName_one": "{{count}} Обличчя успішно видалено.",
       "deletedName_few": "{{count}} Обличчі успішно видалено.",
       "deletedName_many": "{{count}} Облич. успішно видалено.",
@@ -88,7 +88,8 @@
   "train": {
     "title": "Нещодавні визнання",
     "aria": "Виберіть нещодавні визнання",
-    "empty": "Немає останніх спроб розпізнавання обличчя"
+    "empty": "Немає останніх спроб розпізнавання обличчя",
+    "titleShort": "Нещодавні"
   },
   "collections": "Колекції",
   "deleteFaceAttempts": {

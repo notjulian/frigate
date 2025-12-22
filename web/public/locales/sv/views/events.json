@@ -40,8 +40,8 @@
   "detail": {
     "noDataFound": "Inga detaljerade data att granska",
     "aria": "Växla detaljvy",
-    "trackedObject_one": "objekt",
-    "trackedObject_other": "objekt",
+    "trackedObject_one": "{{count}} objekt",
+    "trackedObject_other": "{{count}} objekt",
     "noObjectDetailData": "Inga objektdetaljdata tillgängliga.",
     "label": "Detalj",
     "settings": "Detaljvy inställningar",
@@ -55,5 +55,9 @@
     "clickToSeek": "Klicka för att söka till den här tiden"
   },
   "zoomIn": "Zooma in",
-  "zoomOut": "Zooma ut"
+  "zoomOut": "Zooma ut",
+  "normalActivity": "Normal",
+  "needsReview": "Behöver granskas",
+  "securityConcern": "Säkerhetsproblem",
+  "select_all": "Alla"
 }

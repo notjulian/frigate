@@ -13,7 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { usePersistence } from "@/hooks/use-persistence";
+import { useUserPersistence } from "@/hooks/use-user-persistence";
 import {
   AllGroupsStreamingSettings,
   CameraConfig,
@@ -54,7 +54,7 @@ import { useTranslation } from "react-i18next";
 import { EmptyCard } from "@/components/card/EmptyCard";
 import { BsFillCameraVideoOffFill } from "react-icons/bs";
 import { AuthContext } from "@/context/auth-context";
-import { useIsCustomRole } from "@/hooks/use-is-custom-role";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 
 type LiveDashboardViewProps = {
   cameras: CameraConfig[];
@@ -78,7 +78,7 @@ export default function LiveDashboardView({
 
   // layout
 
-  const [mobileLayout, setMobileLayout] = usePersistence<"grid" | "list">(
+  const [mobileLayout, setMobileLayout] = useUserPersistence<"grid" | "list">(
     "live-layout",
     isDesktop ? "grid" : "list",
   );
@@ -211,8 +211,8 @@ export default function LiveDashboardView({
     };
   }, []);
 
-  const [globalAutoLive] = usePersistence("autoLiveView", true);
-  const [displayCameraNames] = usePersistence("displayCameraNames", false);
+  const [globalAutoLive] = useUserPersistence("autoLiveView", true);
+  const [displayCameraNames] = useUserPersistence("displayCameraNames", false);
 
   const { allGroupsStreamingSettings, setAllGroupsStreamingSettings } =
     useStreamingSettings();
@@ -265,6 +265,7 @@ export default function LiveDashboardView({
     resetPreferredLiveMode,
     isRestreamedStates,
     supportsAudioOutputStates,
+    streamMetadata,
   } = useCameraLiveMode(cameras, windowVisible, activeStreams);
 
   const birdseyeConfig = useMemo(() => config?.birdseye, [config]);
@@ -650,6 +651,12 @@ export default function LiveDashboardView({
               setIsEditMode={setIsEditMode}
               fullscreen={fullscreen}
               toggleFullscreen={toggleFullscreen}
+              preferredLiveModes={preferredLiveModes}
+              setPreferredLiveModes={setPreferredLiveModes}
+              resetPreferredLiveMode={resetPreferredLiveMode}
+              isRestreamedStates={isRestreamedStates}
+              supportsAudioOutputStates={supportsAudioOutputStates}
+              streamMetadata={streamMetadata}
             />
           )}
         </>
@@ -661,10 +668,10 @@ export default function LiveDashboardView({
 function NoCameraView() {
   const { t } = useTranslation(["views/live"]);
   const { auth } = useContext(AuthContext);
-  const isCustomRole = useIsCustomRole();
+  const isAdmin = useIsAdmin();
 
   // Check if this is a restricted user with no cameras in this group
-  const isRestricted = isCustomRole && auth.isAuthenticated;
+  const isRestricted = !isAdmin && auth.isAuthenticated;
 
   return (
     <div className="flex size-full items-center justify-center">

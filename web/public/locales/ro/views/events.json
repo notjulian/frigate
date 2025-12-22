@@ -40,8 +40,8 @@
   "detail": {
     "noDataFound": "Nicio dată detaliată de revizuit",
     "aria": "Comută vizualizarea detaliată",
-    "trackedObject_one": "obiect",
-    "trackedObject_other": "obiecte",
+    "trackedObject_one": "{{count}} obiect",
+    "trackedObject_other": "{{count}} obiecte",
     "noObjectDetailData": "Nicio dată de detaliu obiect disponibilă.",
     "label": "Detaliu",
     "settings": "Setări vizualizare detaliată",
@@ -55,5 +55,9 @@
     "clickToSeek": "Apasă pentru a naviga la acest moment"
   },
   "zoomIn": "Mărește",
-  "zoomOut": "Micșorează"
+  "zoomOut": "Micșorează",
+  "normalActivity": "Normal",
+  "needsReview": "Necesită revizuire",
+  "securityConcern": "Potențială problemă de securitate",
+  "select_all": "Toate"
 }

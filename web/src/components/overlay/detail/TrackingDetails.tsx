@@ -38,6 +38,7 @@ import { isDesktop, isIOS, isMobileOnly, isSafari } from "react-device-detect";
 import { useApiHost } from "@/api";
 import ImageLoadingIndicator from "@/components/indicators/ImageLoadingIndicator";
 import ObjectTrackOverlay from "../ObjectTrackOverlay";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 
 type TrackingDetailsProps = {
   className?: string;
@@ -75,12 +76,15 @@ export function TrackingDetails({
     setIsVideoLoading(true);
   }, [event.id]);
 
-  const { data: eventSequence } = useSWR<TrackingDetailsSequence[]>([
-    "timeline",
+  const { data: eventSequence } = useSWR<TrackingDetailsSequence[]>(
+    ["timeline", { source_id: event.id }],
+    null,
     {
-      source_id: event.id,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      dedupingInterval: 30000,
     },
-  ]);
+  );
 
   const { data: config } = useSWR<FrigateConfig>("config");
 
@@ -104,6 +108,12 @@ export function TrackingDetails({
           },
         ]
       : null,
+    null,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      dedupingInterval: 30000,
+    },
   );
 
   // Convert a timeline timestamp to actual video player time, accounting for
@@ -436,7 +446,7 @@ export function TrackingDetails({
       (event.end_time ?? Date.now() / 1000) + annotationOffset / 1000;
     const startTime = eventStartRecord - REVIEW_PADDING;
     const endTime = eventEndRecord + REVIEW_PADDING;
-    const playlist = `${baseUrl}vod/${event.camera}/start/${startTime}/end/${endTime}/index.m3u8`;
+    const playlist = `${baseUrl}vod/clip/${event.camera}/start/${startTime}/end/${endTime}/index.m3u8`;
 
     return {
       playlist,
@@ -516,7 +526,7 @@ export function TrackingDetails({
 
       <div
         className={cn(
-          "flex items-center justify-center",
+          "flex items-start justify-center",
           isDesktop && "overflow-hidden",
           cameraAspect === "tall" ? "max-h-[50dvh] lg:max-h-[70dvh]" : "w-full",
           cameraAspect === "tall" && isMobileOnly && "w-full",
@@ -612,7 +622,10 @@ export function TrackingDetails({
 
       <div
         className={cn(
-          isDesktop && "justify-between overflow-hidden md:basis-2/5",
+          isDesktop && "justify-start overflow-hidden",
+          aspectRatio > 1 && aspectRatio < 1.5
+            ? "lg:basis-3/5"
+            : "lg:basis-2/5",
         )}
       >
         {isDesktop && tabs && (
@@ -622,172 +635,114 @@ export function TrackingDetails({
         )}
         <div
           className={cn(
-            isDesktop && "scrollbar-container h-full overflow-y-auto",
+            isDesktop && "scrollbar-container max-h-[70vh] overflow-y-auto",
           )}
         >
           {config?.cameras[event.camera]?.onvif.autotracking
             .enabled_in_config && (
-            <div className="mb-2 ml-3 text-sm text-danger">
+            <div className="mb-4 ml-3 text-sm text-danger">
               {t("trackingDetails.autoTrackingTips")}
             </div>
           )}
 
-          <div className="mt-4">
-            <div
-              className={cn("rounded-md bg-background_alt px-0 py-3 md:px-2")}
-            >
-              <div className="flex w-full items-center justify-between">
+          <div className={cn("rounded-md bg-background_alt px-0 py-3 md:px-2")}>
+            <div className="flex w-full items-center justify-between">
+              <div
+                className="flex items-center gap-2 font-medium"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // event.start_time is detect time, convert to record
+                  handleSeekToTime(
+                    (event.start_time ?? 0) + annotationOffset / 1000,
+                  );
+                }}
+                role="button"
+              >
                 <div
-                  className="flex items-center gap-2 font-medium"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // event.start_time is detect time, convert to record
-                    handleSeekToTime(
-                      (event.start_time ?? 0) + annotationOffset / 1000,
-                    );
-                  }}
-                  role="button"
+                  className={cn(
+                    "relative ml-2 rounded-full bg-muted-foreground p-2",
+                  )}
                 >
-                  <div
-                    className={cn(
-                      "relative ml-2 rounded-full bg-muted-foreground p-2",
-                    )}
-                  >
-                    {getIconForLabel(
-                      event.sub_label ? event.label + "-verified" : event.label,
-                      "size-4 text-white",
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="capitalize">{label}</span>
-                    <div className="md:text-md flex items-center text-xs text-secondary-foreground">
-                      {formattedStart ?? ""}
-                      {event.end_time != null ? (
-                        <> - {formattedEnd}</>
-                      ) : (
-                        <div className="inline-block">
-                          <ActivityIndicator className="ml-3 size-4" />
-                        </div>
-                      )}
-                    </div>
-                    {event.data?.recognized_license_plate && (
-                      <>
-                        <span className="text-secondary-foreground">·</span>
-                        <div className="text-sm text-secondary-foreground">
-                          <Link
-                            to={`/explore?recognized_license_plate=${event.data.recognized_license_plate}`}
-                            className="text-sm"
-                          >
-                            {event.data.recognized_license_plate}
-                          </Link>
-                        </div>
-                      </>
+                  {getIconForLabel(
+                    event.sub_label ? event.label + "-verified" : event.label,
+                    "size-4 text-white",
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="capitalize">{label}</span>
+                  <div className="md:text-md flex items-center text-xs text-secondary-foreground">
+                    {formattedStart ?? ""}
+                    {event.end_time != null ? (
+                      <> - {formattedEnd}</>
+                    ) : (
+                      <div className="inline-block">
+                        <ActivityIndicator className="ml-3 size-4" />
+                      </div>
                     )}
                   </div>
+                  {event.data?.recognized_license_plate && (
+                    <>
+                      <span className="text-secondary-foreground">·</span>
+                      <div className="text-sm text-secondary-foreground">
+                        <Link
+                          to={`/explore?recognized_license_plate=${event.data.recognized_license_plate}`}
+                          className="text-sm"
+                        >
+                          {event.data.recognized_license_plate}
+                        </Link>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
+            </div>
 
-              <div className="mt-2">
-                {!eventSequence ? (
-                  <ActivityIndicator className="size-2" size={2} />
-                ) : eventSequence.length === 0 ? (
-                  <div className="py-2 text-muted-foreground">
-                    {t("detail.noObjectDetailData", { ns: "views/events" })}
-                  </div>
-                ) : (
+            <div className="mt-2">
+              {!eventSequence ? (
+                <ActivityIndicator className="size-2" size={2} />
+              ) : eventSequence.length === 0 ? (
+                <div className="py-2 text-muted-foreground">
+                  {t("detail.noObjectDetailData", { ns: "views/events" })}
+                </div>
+              ) : (
+                <div className="-pb-2 relative mx-0" ref={timelineContainerRef}>
                   <div
-                    className="-pb-2 relative mx-0"
-                    ref={timelineContainerRef}
-                  >
+                    className="absolute -top-2 left-6 z-0 w-0.5 -translate-x-1/2 bg-secondary-foreground"
+                    style={{ bottom: lineBottomOffsetPx }}
+                  />
+                  {isWithinEventRange && (
                     <div
-                      className="absolute -top-2 left-6 z-0 w-0.5 -translate-x-1/2 bg-secondary-foreground"
-                      style={{ bottom: lineBottomOffsetPx }}
+                      className="absolute left-6 z-[5] w-0.5 -translate-x-1/2 bg-selected transition-all duration-300"
+                      style={{
+                        top: `${lineTopOffsetPx}px`,
+                        height: `${blueLineHeightPx}px`,
+                      }}
                     />
-                    {isWithinEventRange && (
-                      <div
-                        className="absolute left-6 z-[5] w-0.5 -translate-x-1/2 bg-selected transition-all duration-300"
-                        style={{
-                          top: `${lineTopOffsetPx}px`,
-                          height: `${blueLineHeightPx}px`,
-                        }}
-                      />
-                    )}
-                    <div className="space-y-2">
-                      {eventSequence.map((item, idx) => {
-                        const isActive =
-                          Math.abs(
-                            (effectiveTime ?? 0) - (item.timestamp ?? 0),
-                          ) <= 0.5;
-                        const formattedEventTimestamp = config
-                          ? formatUnixTimestampToDateTime(item.timestamp ?? 0, {
-                              timezone: config.ui.timezone,
-                              date_format:
-                                config.ui.time_format == "24hour"
-                                  ? t(
-                                      "time.formattedTimestampHourMinuteSecond.24hour",
-                                      { ns: "common" },
-                                    )
-                                  : t(
-                                      "time.formattedTimestampHourMinuteSecond.12hour",
-                                      { ns: "common" },
-                                    ),
-                              time_style: "medium",
-                              date_style: "medium",
-                            })
-                          : "";
-
-                        const ratio =
-                          Array.isArray(item.data.box) &&
-                          item.data.box.length >= 4
-                            ? (
-                                aspectRatio *
-                                (item.data.box[2] / item.data.box[3])
-                              ).toFixed(2)
-                            : "N/A";
-                        const areaPx =
-                          Array.isArray(item.data.box) &&
-                          item.data.box.length >= 4
-                            ? Math.round(
-                                (config.cameras[event.camera]?.detect?.width ??
-                                  0) *
-                                  (config.cameras[event.camera]?.detect
-                                    ?.height ?? 0) *
-                                  (item.data.box[2] * item.data.box[3]),
-                              )
-                            : undefined;
-                        const areaPct =
-                          Array.isArray(item.data.box) &&
-                          item.data.box.length >= 4
-                            ? (item.data.box[2] * item.data.box[3]).toFixed(4)
-                            : undefined;
-
-                        return (
-                          <div
-                            key={`${item.timestamp}-${item.source_id ?? ""}-${idx}`}
-                            ref={(el) => {
-                              rowRefs.current[idx] = el;
-                            }}
-                          >
-                            <LifecycleIconRow
-                              item={item}
-                              isActive={isActive}
-                              formattedEventTimestamp={formattedEventTimestamp}
-                              ratio={ratio}
-                              areaPx={areaPx}
-                              areaPct={areaPct}
-                              onClick={() => handleLifecycleClick(item)}
-                              setSelectedZone={setSelectedZone}
-                              getZoneColor={getZoneColor}
-                              effectiveTime={effectiveTime}
-                              isTimelineActive={isWithinEventRange}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
+                  )}
+                  <div className="space-y-2">
+                    {eventSequence.map((item, idx) => {
+                      return (
+                        <div
+                          key={`${item.timestamp}-${item.source_id ?? ""}-${idx}`}
+                          ref={(el) => {
+                            rowRefs.current[idx] = el;
+                          }}
+                        >
+                          <LifecycleIconRow
+                            item={item}
+                            event={event}
+                            onClick={() => handleLifecycleClick(item)}
+                            setSelectedZone={setSelectedZone}
+                            getZoneColor={getZoneColor}
+                            effectiveTime={effectiveTime}
+                            isTimelineActive={isWithinEventRange}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -798,11 +753,7 @@ export function TrackingDetails({
 
 type LifecycleIconRowProps = {
   item: TrackingDetailsSequence;
-  isActive?: boolean;
-  formattedEventTimestamp: string;
-  ratio: string;
-  areaPx?: number;
-  areaPct?: string;
+  event: Event;
   onClick: () => void;
   setSelectedZone: (z: string) => void;
   getZoneColor: (zoneName: string) => number[] | undefined;
@@ -812,11 +763,7 @@ type LifecycleIconRowProps = {
 
 function LifecycleIconRow({
   item,
-  isActive,
-  formattedEventTimestamp,
-  ratio,
-  areaPx,
-  areaPct,
+  event,
   onClick,
   setSelectedZone,
   getZoneColor,
@@ -826,8 +773,101 @@ function LifecycleIconRow({
   const { t } = useTranslation(["views/explore", "components/player"]);
   const { data: config } = useSWR<FrigateConfig>("config");
   const [isOpen, setIsOpen] = useState(false);
-
   const navigate = useNavigate();
+  const isAdmin = useIsAdmin();
+
+  const aspectRatio = useMemo(() => {
+    if (!config) {
+      return 16 / 9;
+    }
+
+    return (
+      config.cameras[event.camera].detect.width /
+      config.cameras[event.camera].detect.height
+    );
+  }, [config, event]);
+
+  const isActive = useMemo(
+    () => Math.abs((effectiveTime ?? 0) - (item.timestamp ?? 0)) <= 0.5,
+    [effectiveTime, item.timestamp],
+  );
+
+  const formattedEventTimestamp = useMemo(
+    () =>
+      config
+        ? formatUnixTimestampToDateTime(item.timestamp ?? 0, {
+            timezone: config.ui.timezone,
+            date_format:
+              config.ui.time_format == "24hour"
+                ? t("time.formattedTimestampHourMinuteSecond.24hour", {
+                    ns: "common",
+                  })
+                : t("time.formattedTimestampHourMinuteSecond.12hour", {
+                    ns: "common",
+                  }),
+            time_style: "medium",
+            date_style: "medium",
+          })
+        : "",
+    [config, item.timestamp, t],
+  );
+
+  const ratio = useMemo(
+    () =>
+      Array.isArray(item.data.box) && item.data.box.length >= 4
+        ? (aspectRatio * (item.data.box[2] / item.data.box[3])).toFixed(2)
+        : "N/A",
+    [aspectRatio, item.data.box],
+  );
+
+  const areaPx = useMemo(
+    () =>
+      Array.isArray(item.data.box) && item.data.box.length >= 4
+        ? Math.round(
+            (config?.cameras[event.camera]?.detect?.width ?? 0) *
+              (config?.cameras[event.camera]?.detect?.height ?? 0) *
+              (item.data.box[2] * item.data.box[3]),
+          )
+        : undefined,
+    [config, event.camera, item.data.box],
+  );
+
+  const attributeAreaPx = useMemo(
+    () =>
+      Array.isArray(item.data.attribute_box) &&
+      item.data.attribute_box.length >= 4
+        ? Math.round(
+            (config?.cameras[event.camera]?.detect?.width ?? 0) *
+              (config?.cameras[event.camera]?.detect?.height ?? 0) *
+              (item.data.attribute_box[2] * item.data.attribute_box[3]),
+          )
+        : undefined,
+    [config, event.camera, item.data.attribute_box],
+  );
+
+  const attributeAreaPct = useMemo(
+    () =>
+      Array.isArray(item.data.attribute_box) &&
+      item.data.attribute_box.length >= 4
+        ? (item.data.attribute_box[2] * item.data.attribute_box[3]).toFixed(4)
+        : undefined,
+    [item.data.attribute_box],
+  );
+
+  const areaPct = useMemo(
+    () =>
+      Array.isArray(item.data.box) && item.data.box.length >= 4
+        ? (item.data.box[2] * item.data.box[3]).toFixed(4)
+        : undefined,
+    [item.data.box],
+  );
+
+  const score = useMemo(() => {
+    if (item.data.score !== undefined) {
+      return (item.data.score * 100).toFixed(0) + "%";
+    }
+    return "N/A";
+  }, [item.data.score]);
 
   return (
     <div
@@ -856,74 +896,105 @@ function LifecycleIconRow({
             <div className="text-md flex items-start break-words text-left">
               {getLifecycleItemDescription(item)}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-secondary-foreground md:gap-5">
-              <div className="flex items-center gap-1">
-                <span className="text-primary-variant">
-                  {t("trackingDetails.lifecycleItemDesc.header.ratio")}
-                </span>
-                <span className="font-medium text-primary">{ratio}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-primary-variant">
-                  {t("trackingDetails.lifecycleItemDesc.header.area")}
-                </span>
-                {areaPx !== undefined && areaPct !== undefined ? (
-                  <span className="font-medium text-primary">
-                    {t("information.pixels", { ns: "common", area: areaPx })} ·{" "}
-                    {areaPct}%
+            {/* Only show Score/Ratio/Area for object events, not for audio (heard) or manual API (external) events */}
+            {item.class_type !== "heard" && item.class_type !== "external" && (
+              <div className="my-2 ml-2 flex flex-col flex-wrap items-start gap-1.5 text-xs text-secondary-foreground">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-primary-variant">
+                    {t("trackingDetails.lifecycleItemDesc.header.score")}
                   </span>
-                ) : (
-                  <span>N/A</span>
-                )}
-              </div>
-
-              {item.data?.zones && item.data.zones.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                  {item.data.zones.map((zone, zidx) => {
-                    const color = getZoneColor(zone)?.join(",") ?? "0,0,0";
-                    return (
-                      <Badge
-                        key={`${zone}-${zidx}`}
-                        variant="outline"
-                        className="inline-flex cursor-pointer items-center gap-2"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          setSelectedZone(zone);
-                        }}
-                        style={{
-                          borderColor: `rgba(${color}, 0.6)`,
-                          background: `rgba(${color}, 0.08)`,
-                        }}
-                      >
-                        <span
-                          className="size-1 rounded-full"
-                          style={{
-                            display: "inline-block",
-                            width: 10,
-                            height: 10,
-                            backgroundColor: `rgb(${color})`,
-                          }}
-                        />
-                        <span
-                          className={cn(
-                            item.data?.zones_friendly_names?.[zidx] === zone &&
-                              "smart-capitalize",
-                          )}
-                        >
-                          {item.data?.zones_friendly_names?.[zidx]}
-                        </span>
-                      </Badge>
-                    );
-                  })}
+                  <span className="font-medium text-primary">{score}</span>
                 </div>
-              )}
-            </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-primary-variant">
+                    {t("trackingDetails.lifecycleItemDesc.header.ratio")}
+                  </span>
+                  <span className="font-medium text-primary">{ratio}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-primary-variant">
+                    {t("trackingDetails.lifecycleItemDesc.header.area")}{" "}
+                    {attributeAreaPx !== undefined &&
+                      attributeAreaPct !== undefined && (
+                        <span className="text-primary-variant">
+                          ({getTranslatedLabel(item.data.label)})
+                        </span>
+                      )}
+                  </span>
+                  {areaPx !== undefined && areaPct !== undefined ? (
+                    <span className="font-medium text-primary">
+                      {t("information.pixels", { ns: "common", area: areaPx })}{" "}
+                      · {areaPct}%
+                    </span>
+                  ) : (
+                    <span>N/A</span>
+                  )}
+                </div>
+                {attributeAreaPx !== undefined &&
+                  attributeAreaPct !== undefined && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-primary-variant">
+                        {t("trackingDetails.lifecycleItemDesc.header.area")} (
+                        {getTranslatedLabel(item.data.attribute)})
+                      </span>
+                      <span className="font-medium text-primary">
+                        {t("information.pixels", {
+                          ns: "common",
+                          area: attributeAreaPx,
+                        })}{" "}
+                        · {attributeAreaPct}%
+                      </span>
+                    </div>
+                  )}
+              </div>
+            )}
+
+            {item.data?.zones && item.data.zones.length > 0 && (
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                {item.data.zones.map((zone, zidx) => {
+                  const color = getZoneColor(zone)?.join(",") ?? "0,0,0";
+                  return (
+                    <Badge
+                      key={`${zone}-${zidx}`}
+                      variant="outline"
+                      className="inline-flex cursor-pointer items-center gap-2"
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        setSelectedZone(zone);
+                      }}
+                      style={{
+                        borderColor: `rgba(${color}, 0.6)`,
+                        background: `rgba(${color}, 0.08)`,
+                      }}
+                    >
+                      <span
+                        className="size-1 rounded-full"
+                        style={{
+                          display: "inline-block",
+                          width: 10,
+                          height: 10,
+                          backgroundColor: `rgb(${color})`,
+                        }}
+                      />
+                      <span
+                        className={cn(
+                          item.data?.zones_friendly_names?.[zidx] === zone &&
+                            "smart-capitalize",
+                        )}
+                      >
+                        {item.data?.zones_friendly_names?.[zidx]}
+                      </span>
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
         <div className="ml-3 flex-shrink-0 px-1 text-right text-xs text-primary-variant">
           <div className="flex flex-row items-center gap-3">
             <div className="whitespace-nowrap">{formattedEventTimestamp}</div>
-            {(config?.plus?.enabled || item.data.box) && (
+            {((isAdmin && config?.plus?.enabled) || item.data.box) && (
               <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
                 <DropdownMenuTrigger>
                   <div className="rounded p-1 pr-2" role="button">
@@ -932,7 +1003,7 @@ function LifecycleIconRow({
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuContent>
-                    {config?.plus?.enabled && (
+                    {isAdmin && config?.plus?.enabled && (
                       <DropdownMenuItem
                         className="cursor-pointer"
                         onSelect={async () => {

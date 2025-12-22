@@ -48,7 +48,7 @@
           "regenerate": "En ny beskrivning har begärts från {{provider}}. Beroende på din leverantörs hastighet kan det ta lite tid att generera den nya beskrivningen.",
           "updatedSublabel": "Underetiketten har uppdaterats.",
           "updatedLPR": "Nummerplåt har uppdaterats.",
-          "audioTranscription": "Ljudtranskription har begärts."
+          "audioTranscription": "Ljudtranskription har begärts. Beroende på hastigheten på din Frigate-server kan transkriptionen ta lite tid att slutföra."
         },
         "error": {
           "regenerate": "Kunde inte ringa {{provider}} för en ny beskrivning: {{errorMessage}}",
@@ -110,7 +110,8 @@
     "video": "video",
     "snapshot": "ögonblicksbild",
     "object_lifecycle": "objektets livscykel",
-    "thumbnail": "miniatyrbild"
+    "thumbnail": "miniatyrbild",
+    "tracking_details": "spårningsdetaljer"
   },
   "trackedObjectDetails": "Detaljer om spårade objekt",
   "objectLifecycle": {
@@ -207,6 +208,10 @@
     },
     "hideObjectDetails": {
       "label": "Dölj objektsökväg"
+    },
+    "downloadCleanSnapshot": {
+      "label": "Ladda ner ren ögonblicksbild",
+      "aria": "Ladda ner ren ögonblicksbild"
     }
   },
   "dialog": {
@@ -226,7 +231,9 @@
         "success": "Spårat objekt har raderats.",
         "error": "Misslyckades med att ta bort spårat objekt: {{errorMessage}}"
       }
-    }
+    },
+    "previousTrackedObject": "Föregående spårade objekt",
+    "nextTrackedObject": "Nästa spårade objekt"
   },
   "aiAnalysis": {
     "title": "AI-analys"
@@ -252,13 +259,14 @@
         "faceOrLicense_plate": "{{attribute}} upptäckt för {{label}}",
         "other": "{{label}} igenkänd som {{attribute}}"
       },
-      "gone": "{{label}} vänster",
+      "gone": "{{label}} lämnade",
       "heard": "{{label}} hördes",
       "external": "{{label}} upptäckt",
       "header": {
         "zones": "Zoner",
         "ratio": "Förhållandet",
-        "area": "Område"
+        "area": "Område",
+        "score": "Resultat"
       }
     },
     "annotationSettings": {
@@ -273,7 +281,7 @@
         "millisecondsToOffset": "Millisekunder för att förskjuta detektera annoteringar med. <em>Standard: 0</em>",
         "tips": "TIPS: Föreställ dig ett händelseklipp med en person som går från vänster till höger. Om tidslinjens avgränsningsram konsekvent är till vänster om personen bör värdet minskas. På samma sätt, om en person går från vänster till höger och avgränsningsramen konsekvent är framför personen bör värdet ökas.",
         "toast": {
-          "success": "Annoteringsförskjutningen för {{camera}} har sparats i konfigurationsfilen. Starta om Frigate för att tillämpa dina ändringar."
+          "success": "Annoteringsförskjutningen för {{camera}} har sparats i konfigurationsfilen."
         }
       }
     },

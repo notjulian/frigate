@@ -23,7 +23,7 @@
   },
   "allCameras": "Alle kameraer",
   "timeline.aria": "Velg tidslinje",
-  "documentTitle": "Inspiser - Frigate",
+  "documentTitle": "Inspeksjon - Frigate",
   "recordings": {
     "documentTitle": "Opptak - Frigate"
   },
@@ -40,8 +40,8 @@
   "detail": {
     "noDataFound": "Ingen detaljer å inspisere",
     "aria": "Vis/skjul detaljvisning",
-    "trackedObject_one": "objekt",
-    "trackedObject_other": "objekter",
+    "trackedObject_one": "{{count}} objekt",
+    "trackedObject_other": "{{count}} objekter",
     "noObjectDetailData": "Ingen detaljdata for objektet tilgjengelig.",
     "label": "Detalj",
     "settings": "Detaljvisning – innstillinger",
@@ -55,5 +55,9 @@
     "clickToSeek": "Klikk for å gå til dette tidspunktet"
   },
   "zoomIn": "Zoom inn",
-  "zoomOut": "Zoom ut"
+  "zoomOut": "Zoom ut",
+  "normalActivity": "Normal",
+  "needsReview": "Trenger inspeksjon",
+  "securityConcern": "Sikkerhetsrisiko",
+  "select_all": "Alle"
 }

@@ -10,12 +10,8 @@ import useSWR from "swr";
 import { baseUrl } from "@/api/baseUrl";
 import { isMobile } from "react-device-detect";
 import { cn } from "@/lib/utils";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { IoIosWarning } from "react-icons/io";
 
 export type Step3FormData = {
   examplesGenerated: boolean;
@@ -49,6 +45,12 @@ export default function Step3ChooseExamples({
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentClassIndex, setCurrentClassIndex] = useState(0);
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
+  const [cacheKey, setCacheKey] = useState<number>(Date.now());
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
+
+  const handleImageLoad = useCallback((imageName: string) => {
+    setLoadedImages((prev) => new Set(prev).add(imageName));
+  }, []);
 
   const { data: trainImages, mutate: refreshTrainImages } = useSWR<string[]>(
     hasGenerated ? `classification/${step1Data.modelName}/train` : null,
@@ -145,18 +147,99 @@ export default function Step3ChooseExamples({
       );
       await Promise.all(categorizePromises);
 
-      // Step 3: Kick off training
-      await axios.post(`/classification/${step1Data.modelName}/train`);
+      // Step 2.5: Delete any unselected images from train folder
+      // For state models, all images must be classified, so unselected images should be removed
+      // For object models, unselected images are assigned to "none" so they're already categorized
+      if (step1Data.modelType === "state") {
+        try {
+          // Fetch current train images to see what's left after categorization
+          const trainImagesResponse = await axios.get<string[]>(
+            `/classification/${step1Data.modelName}/train`,
+          );
+          const remainingTrainImages = trainImagesResponse.data || [];
 
-      toast.success(t("wizard.step3.trainingStarted"));
-      setIsTraining(true);
+          const categorizedImageNames = new Set(Object.keys(classifications));
+          const unselectedImages = remainingTrainImages.filter(
+            (imageName) => !categorizedImageNames.has(imageName),
+          );
+
+          if (unselectedImages.length > 0) {
+            await axios.post(
+              `/classification/${step1Data.modelName}/train/delete`,
+              {
+                ids: unselectedImages,
+              },
+            );
+          }
+        } catch (error) {
+          // Silently fail - unselected images will remain but won't cause issues
+          // since the frontend filters out images that don't match expected format
+        }
+      }
+
+      // Step 2.6: Create empty folders for classes that don't have any images
+      // This ensures all classes are available in the dataset view later
+      const classesWithImages = new Set(
+        Object.values(classifications).filter((c) => c && c !== "none"),
+      );
+      const emptyFolderPromises = step1Data.classes
+        .filter((className) => !classesWithImages.has(className))
+        .map((className) =>
+          axios.post(
+            `/classification/${step1Data.modelName}/dataset/${className}/create`,
+          ),
+        );
+      await Promise.all(emptyFolderPromises);
+
+      // Step 3: Determine if we should train
+      // For state models, we need ALL states to have examples (at least 2 states)
+      // For object models, we need at least 1 class with images (the rest go to "none")
+      const allStatesHaveExamplesForTraining =
+        step1Data.modelType !== "state" ||
+        step1Data.classes.every((className) =>
+          classesWithImages.has(className),
+        );
+      const shouldTrain =
+        step1Data.modelType === "object"
+          ? classesWithImages.size >= 1
+          : allStatesHaveExamplesForTraining && classesWithImages.size >= 2;
+
+      // Step 4: Kick off training only if we have enough classes with images
+      if (shouldTrain) {
+        await axios.post(`/classification/${step1Data.modelName}/train`);
+
+        toast.success(t("wizard.step3.trainingStarted"), {
+          closeButton: true,
+        });
+        setIsTraining(true);
+      } else {
+        // Don't train - not all states have examples
+        toast.success(t("wizard.step3.modelCreated"), {
+          closeButton: true,
+        });
+        setIsTraining(false);
+        onClose();
+      }
     },
-    [step1Data, step2Data, t],
+    [step1Data, step2Data, t, onClose],
   );
 
   const handleContinueClassification = useCallback(async () => {
     // Mark selected images with current class
     const newClassifications = { ...imageClassifications };
+
+    // Handle user going back and de-selecting images
+    const imagesToCheck = unknownImages.slice(0, 24);
+    imagesToCheck.forEach((imageName) => {
+      if (
+        newClassifications[imageName] === currentClass &&
+        !selectedImages.has(imageName)
+      ) {
+        delete newClassifications[imageName];
+      }
+    });
+
+    // Then, add all currently selected images to the current class
     selectedImages.forEach((imageName) => {
       newClassifications[imageName] = currentClass;
     });
@@ -255,6 +338,8 @@ export default function Step3ChooseExamples({
       setHasGenerated(true);
       toast.success(t("wizard.step3.generateSuccess"));
 
+      // Update cache key to force image reload
+      setCacheKey(Date.now());
       await refreshTrainImages();
     } catch (error) {
       const axiosError = error as {
@@ -327,28 +412,61 @@ export default function Step3ChooseExamples({
     return unclassifiedImages.length === 0;
   }, [unclassifiedImages]);
 
-  // For state models on the last class, require all images to be classified
   const isLastClass = currentClassIndex === allClasses.length - 1;
-  const canProceed = useMemo(() => {
-    if (step1Data.modelType === "state" && isLastClass) {
-      // Check if all 24 images will be classified after current selections are applied
-      const totalImages = unknownImages.slice(0, 24).length;
+  const statesWithExamples = useMemo(() => {
+    if (step1Data.modelType !== "state") return new Set<string>();
 
-      // Count images that will be classified (either already classified or currently selected)
-      const allImages = unknownImages.slice(0, 24);
-      const willBeClassified = allImages.filter((img) => {
-        return imageClassifications[img] || selectedImages.has(img);
-      }).length;
+    const states = new Set<string>();
+    const allImages = unknownImages.slice(0, 24);
 
-      return willBeClassified >= totalImages;
-    }
-    return true;
+    // Check which states have at least one image classified
+    allImages.forEach((img) => {
+      let className: string | undefined;
+      if (selectedImages.has(img)) {
+        className = currentClass;
+      } else {
+        className = imageClassifications[img];
+      }
+      if (className && allClasses.includes(className)) {
+        states.add(className);
+      }
+    });
+
+    return states;
   }, [
     step1Data.modelType,
-    isLastClass,
     unknownImages,
     imageClassifications,
     selectedImages,
+    currentClass,
+    allClasses,
+  ]);
+
+  const allStatesHaveExamples = useMemo(() => {
+    if (step1Data.modelType !== "state") return true;
+    return allClasses.every((className) => statesWithExamples.has(className));
+  }, [step1Data.modelType, allClasses, statesWithExamples]);
+
+  const hasUnclassifiedImages = useMemo(() => {
+    if (!unknownImages) return false;
+    const allImages = unknownImages.slice(0, 24);
+    return allImages.some((img) => !imageClassifications[img]);
+  }, [unknownImages, imageClassifications]);
+
+  const showMissingStatesWarning = useMemo(() => {
+    return (
+      step1Data.modelType === "state" &&
+      isLastClass &&
+      !allStatesHaveExamples &&
+      !hasUnclassifiedImages &&
+      hasGenerated
+    );
+  }, [
+    step1Data.modelType,
+    isLastClass,
+    allStatesHaveExamples,
+    hasUnclassifiedImages,
+    hasGenerated,
   ]);
 
   const handleBack = useCallback(() => {
@@ -397,6 +515,17 @@ export default function Step3ChooseExamples({
         </div>
       ) : hasGenerated ? (
         <div className="flex flex-col gap-4">
+          {showMissingStatesWarning && (
+            <Alert variant="destructive">
+              <IoIosWarning className="size-5" />
+              <AlertTitle>
+                {t("wizard.step3.missingStatesWarning.title")}
+              </AlertTitle>
+              <AlertDescription>
+                {t("wizard.step3.missingStatesWarning.description")}
+              </AlertDescription>
+            </Alert>
+          )}
           {!allImagesClassified && (
             <div className="text-center">
               <h3 className="text-lg font-medium">
@@ -444,10 +573,16 @@ export default function Step3ChooseExamples({
                       )}
                       onClick={() => toggleImageSelection(imageName)}
                     >
+                      {!loadedImages.has(imageName) && (
+                        <div className="flex h-full items-center justify-center">
+                          <ActivityIndicator className="size-6" />
+                        </div>
+                      )}
                       <img
-                        src={`${baseUrl}clips/${step1Data.modelName}/train/${imageName}`}
+                        src={`${baseUrl}clips/${step1Data.modelName}/train/${imageName}?t=${cacheKey}`}
                         alt={`Example ${index + 1}`}
                         className="h-full w-full object-cover"
+                        onLoad={() => handleImageLoad(imageName)}
                       />
                     </div>
                   );
@@ -472,35 +607,20 @@ export default function Step3ChooseExamples({
           <Button type="button" onClick={handleBack} className="sm:flex-1">
             {t("button.back", { ns: "common" })}
           </Button>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                onClick={
-                  allImagesClassified
-                    ? handleContinue
-                    : handleContinueClassification
-                }
-                variant="select"
-                className="flex items-center justify-center gap-2 sm:flex-1"
-                disabled={
-                  !hasGenerated || isGenerating || isProcessing || !canProceed
-                }
-              >
-                {isProcessing && <ActivityIndicator className="size-4" />}
-                {t("button.continue", { ns: "common" })}
-              </Button>
-            </TooltipTrigger>
-            {!canProceed && (
-              <TooltipPortal>
-                <TooltipContent>
-                  {t("wizard.step3.allImagesRequired", {
-                    count: unclassifiedImages.length,
-                  })}
-                </TooltipContent>
-              </TooltipPortal>
-            )}
-          </Tooltip>
+          <Button
+            type="button"
+            onClick={
+              allImagesClassified
+                ? handleContinue
+                : handleContinueClassification
+            }
+            variant="select"
+            className="flex items-center justify-center gap-2 sm:flex-1"
+            disabled={!hasGenerated || isGenerating || isProcessing}
+          >
+            {isProcessing && <ActivityIndicator className="size-4" />}
+            {t("button.continue", { ns: "common" })}
+          </Button>
         </div>
       )}
     </div>

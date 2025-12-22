@@ -40,8 +40,8 @@
   "detail": {
     "noDataFound": "Geen gedetailleerde gegevens om te beoordelen",
     "aria": "Detailweergave in- of uitschakelen",
-    "trackedObject_one": "object",
-    "trackedObject_other": "objecten",
+    "trackedObject_one": "{{count}} object",
+    "trackedObject_other": "{{count}} objecten",
     "noObjectDetailData": "Geen objectdetails beschikbaar.",
     "label": "Detail",
     "settings": "Instellingen voor detailweergave",
@@ -55,5 +55,9 @@
     "clickToSeek": "Klik om naar deze tijd te zoeken"
   },
   "zoomIn": "Zoom in",
-  "zoomOut": "Zoom uit"
+  "zoomOut": "Zoom uit",
+  "normalActivity": "Normaal",
+  "needsReview": "Heeft een beoordeling nodig",
+  "securityConcern": "Beveiligingsprobleem",
+  "select_all": "Alle"
 }
